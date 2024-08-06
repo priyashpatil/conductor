@@ -22,6 +22,8 @@ class Package
 
     public readonly array $latest_data;
 
+    private readonly string $composer_binary;
+
     /**
      * Create a package instance from a package name.
      */
@@ -55,6 +57,7 @@ class Package
     {
         $this->name = $this->data['package']['name'];
         $this->latest_data = $this->extractLatestData($this->data);
+        $this->composer_binary = config('conductor.composer_binary');
     }
 
     public static function getPackageData(string $name): array
@@ -92,21 +95,21 @@ class Package
 
     public function isInstalledLocally(): bool
     {
-        exec("composer show {$this->name} 2>&1", $output, $return_code);
+        exec("{$this->composer_binary} show {$this->name} 2>&1", $output, $return_code);
 
         return $return_code === 0;
     }
 
     public function isInstalledGlobally(): bool
     {
-        exec("composer global show {$this->name} 2>&1", $output, $return_code);
+        exec("{$this->composer_binary} global show {$this->name} 2>&1", $output, $return_code);
 
         return $return_code === 0;
     }
 
     public function installGlobally(): int
     {
-        $cmd = "composer global require {$this->name}";
+        $cmd = "{$this->composer_binary} global require {$this->name}";
         if ($this->isDev()) {
             $cmd .= ' --dev';
         }
@@ -117,7 +120,7 @@ class Package
 
     public function uninstallGlobally(): int
     {
-        $cmd = "composer global uninstall {$this->name}";
+        $cmd = "{$this->composer_binary} global uninstall {$this->name}";
         if ($this->isDev()) {
             $cmd .= ' --dev';
         }
@@ -139,8 +142,8 @@ class Package
             ->map(fn (string $option): string => "--{$option}")
             ->implode(' ');
         $cmd = str(match ($context) {
-            self::GLOBALLY => 'composer global exec',
-            self::LOCALLY => 'composer exec',
+            self::GLOBALLY => "{$this->composer_binary} global exec",
+            self::LOCALLY => "{$this->composer_binary} exec",
             default => throw new Exception('invalid context'),
         })->append(" {$binary} {$command} {$arguments} {$options}")->toString();
         $result = Process::forever()->tty()->run($cmd);
